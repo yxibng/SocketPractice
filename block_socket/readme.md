@@ -9,7 +9,7 @@ clang++ -g -o client -std=c++11 client.cpp
 # 先运行 sever
 ./server
 
-# 在运行 client
+# 再运行 client
 ./client
 ```
 
