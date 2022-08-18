@@ -1,6 +1,10 @@
 ## 对端socket 关闭了接收通道，本端继续调用send发送数据，会触发sigpipe信号，导致程序退出
 
-通常的处理
+### 如何关闭接收通道
+```
+shutdown(fd, SHUT_RD);
+```
+### 通常的处理
 1. 忽略这个SIGPIPE信号
 ```
 struct sigaction sa;
