@@ -4,10 +4,10 @@
 #include <iostream>
 #include <netinet/in.h>
 #include <poll.h>
+#include <stdio.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <vector>
-#include <stdio.h>
 
 #define SERVER_PORT 3000
 #define INVALID_FD -1
@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
   fds.push_back(fd);
 
   while (true) {
-    //timeout = -1, poll 会一直阻塞到有事件到来
+    // timeout = -1, poll 会一直阻塞到有事件到来
     int ret = poll(&fds[0], fds.size(), -1);
     if (ret == 0) {
       // timeout
@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
 
     for (auto &&fd : fds) {
       if (fd.fd == listenfd) {
-        if (fd.revents == POLLIN) {
+        if (fd.revents & POLLIN) {
           //有新连接到来
           sockaddr_in clientAddr;
           socklen_t len;
@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
               break;
             }
           }
-    
+
           assert(clientfd > 0);
           std::cout << "new client connect fd: " << clientfd << std::endl;
           struct pollfd clientpollfd;
@@ -113,33 +113,39 @@ int main(int argc, char *argv[]) {
         } else {
           continue;
         }
-      }
-      // recv
-
-      if (fd.fd == INVALID_FD) {
-        continue;
-      }
-      char buf[128] = {0};
-      int receiveBytes = recv(fd.fd, buf, 128, 0);
-      if (receiveBytes == 0) {
-        fd.fd = INVALID_FD;
-        continue;
-      } else if (receiveBytes == -1) {
-        if (errno == EINTR) {
-          std::cout << "recv interrupted by signal. fd: " << fd.fd << std::endl;
-          continue;
-        } else {
-          std::cout << "recv data error. fd: " << fd.fd << std::endl;
-          fd.fd = INVALID_FD;
+      } else {
+        //非listenfd
+        if (fd.fd == INVALID_FD) {
           continue;
         }
-      } else {
-        std::cout << "recv data from fd: " << fd.fd << " data: " << buf
-                  << std::endl;
-        continue;
+        if (fd.revents & POLLIN) {
+          //处理fd可读事件
+          char buf[128] = {0};
+          int receiveBytes = recv(fd.fd, buf, 128, 0);
+          if (receiveBytes == 0) {
+            // recv返回0， 对端关闭了连接
+            std::cout << "client disconnected. fd: " << fd.fd << std::endl;
+            fd.fd = INVALID_FD;
+            continue;
+          } else if (receiveBytes == -1) {
+            if (errno == EINTR) {
+              std::cout << "recv interrupted by signal. fd: " << fd.fd
+                        << std::endl;
+              continue;
+            } else {
+              std::cout << "recv data error. fd: " << fd.fd << std::endl;
+              fd.fd = INVALID_FD;
+              continue;
+            }
+          } else {
+            std::cout << "recv data from fd: " << fd.fd << " data: " << buf
+                      << std::endl;
+            continue;
+          }
+        }
       }
     }
-    // clear invalid fds
+    // 清理断开连接的fd
     auto start = std::remove_if(fds.begin(), fds.end(), [](struct pollfd afd) {
       return afd.fd == INVALID_FD;
     });
